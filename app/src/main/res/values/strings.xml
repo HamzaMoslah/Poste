@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">ApprentissageFouille1</string>
+    <string name="ticket">Prendre un ticket</string>
+    <string name="spinner_title">Liste des services</string>
+
+    <string-array name="service_arrays">
+        <item>Post-finance</item>
+        <item>Postassurance</item>
+        <item>Courrier</item>
+        <item>Rapid-poste</item>
+        <item>Poste-colis</item>
+    </string-array>
+</resources>
