@@ -17,6 +17,7 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonArrayRequest;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.RequestFuture;
+import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
 import org.json.JSONArray;
@@ -31,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     Button b;
-    String url = "http://192.168.43.173/";
+    String url = "http://192.168.101.12/";
     Spinner spinner;
     Map<Integer, String> services = new HashMap<Integer, String>();
 
@@ -75,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
 //            services.put(5, "Poste-colis");
 //        }
 
-        Spinner spinner = (Spinner) findViewById(R.id.spinner);
+        final Spinner spinner = (Spinner) findViewById(R.id.spinner);
         // Create an ArrayAdapter using the string array and a default spinner layout
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
                 R.array.service_arrays, android.R.layout.simple_spinner_item);
@@ -88,35 +89,33 @@ public class MainActivity extends AppCompatActivity {
         b.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                JsonArrayRequest jsonRequest1 = new JsonArrayRequest
-                        (url + "add_ticket.php", new Response.Listener<JSONArray>() {
+                StringRequest request = new StringRequest(Request.Method.POST, url+"add_ticket.php",
+                        new Response.Listener<String>()
+                        {
                             @Override
-                            public void onResponse(JSONArray response) {
-                                // the response is already constructed as a JSONObject!
-                                try {
-                                    JSONObject jsonObject = response.getJSONObject(0);
-                                    int success = jsonObject.getInt("success");
-                                    String message = jsonObject.getString("message");
-
-                                    if (success == 0) {
-                                        Toast.makeText(getApplicationContext(), "Désolé, vous devez essayez plus tard", Toast.LENGTH_LONG).show();
-                                    } else {
-                                        Toast.makeText(getApplicationContext(), "Le numéro de votre ticket est : " + message, Toast.LENGTH_LONG).show();
-                                        // Log.d("message : ",message);
-                                    }
-                                } catch (JSONException e) {
-                                    e.printStackTrace();
-                                }
+                            public void onResponse(String response) {
+                                // response
+                                Log.d("Response", response);
                             }
-                        }, new Response.ErrorListener() {
-
+                        },
+                        new Response.ErrorListener()
+                        {
                             @Override
                             public void onErrorResponse(VolleyError error) {
-                                error.printStackTrace();
+                                // error
+                                Log.d("Error.Response", error.toString());
                             }
-                        });
-
-                Volley.newRequestQueue(MainActivity.this).add(jsonRequest1);  // adding the request to the Volley request queue
+                        }
+                 ){
+                    @Override
+                    protected Map<String, String> getParams()
+                    {
+                        Map<String, String>  params = new HashMap<String, String>();
+                        params.put("service", String.valueOf(spinner.getSelectedItemPosition()+1));
+                        return params;
+                    }
+                };
+                Volley.newRequestQueue(MainActivity.this).add(request);  // adding the request to the Volley request queue
             }
         });
     }
