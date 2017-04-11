@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     Button b;
-    String url = "http://192.168.101.12/";
+    String url = "http://192.168.43.173/";
     Spinner spinner;
     Map<Integer, String> services = new HashMap<Integer, String>();
 
@@ -96,6 +96,16 @@ public class MainActivity extends AppCompatActivity {
                             public void onResponse(String response) {
                                 // response
                                 Log.d("Response", response);
+                                try {
+                                    //Do it with this it will work
+                                    JSONArray jsonArray = new JSONArray(response);
+                                    JSONObject jsonObject = jsonArray.getJSONObject(0);
+                                    int num = jsonObject.getInt("message");
+                                    Toast.makeText(getApplicationContext(), "Le numéro de votre ticket : "+num, Toast.LENGTH_LONG).show();
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                    Toast.makeText(getApplicationContext(), "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                                }
                             }
                         },
                         new Response.ErrorListener()
