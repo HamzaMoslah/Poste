@@ -1,9 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 23
+    compileSdkVersion 'Google Apis:Google Apis:23'
     buildToolsVersion "23.0.3"
     defaultConfig {
+        multiDexEnabled true
         applicationId "com.example.moslah_hamza.apprentissagefouille1"
         minSdkVersion 15
         targetSdkVersion 23
@@ -27,6 +28,7 @@ dependencies {
     })
     compile 'com.android.support:appcompat-v7:23.4.0'
     compile 'com.android.support:recyclerview-v7:23.4.0'
+    compile 'com.google.android.gms:play-services:10.2.1'
     testCompile 'junit:junit:4.12'
     compile files('libs/library-1.0.0.jar')
 }
