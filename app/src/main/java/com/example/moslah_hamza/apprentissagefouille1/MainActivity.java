@@ -5,6 +5,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -31,6 +32,7 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.SettingsApi;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -110,6 +112,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                 .build();
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 
+        LocationManager locationManager1 = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if(locationManager1.isProviderEnabled(LocationManager.GPS_PROVIDER))
+            Log.d("GPS ","enabled");
+
         if (mGoogleApiClient != null && locationManager != null)
             Log.d("", "google client initalized successfully ");
 
@@ -181,6 +187,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             Toast.makeText(this, "Location not Detected", Toast.LENGTH_LONG).show();
             Log.d("", "Location not Detected ");
         }
+
+
     }
 
     protected void startLocationUpdates() {
