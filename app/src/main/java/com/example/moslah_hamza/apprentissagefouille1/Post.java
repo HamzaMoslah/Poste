@@ -5,7 +5,7 @@ package com.example.moslah_hamza.apprentissagefouille1;
  */
 
 public class Post {
-    private double wait, lon, lat;
+    private double wait, lon, lat, distance;
     private int id, service, code, cluster;
     private String adress, label;
 
@@ -21,6 +21,14 @@ public class Post {
     }
 
     public Post() {
+    }
+
+    public double getDistance() {
+        return distance;
+    }
+
+    public void setDistance(double distance) {
+        this.distance = distance;
     }
 
     public double getWait() {

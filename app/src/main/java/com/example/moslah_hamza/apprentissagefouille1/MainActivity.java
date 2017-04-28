@@ -43,16 +43,22 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
@@ -68,7 +74,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     private List<Post> posts = new ArrayList<>();
     private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
     private long FASTEST_INTERVAL = 2000; /* 2 sec */
-    private String file = "D:\\hamza\\GL4\\Semestre2\\ApprentissageFouille\\posts.txt";
+    private double longitude, latitude;
+    private String file = "posts.txt";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,6 +145,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         b.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                final Post bestOf = getNearestBestPost(spinner.getSelectedItemPosition() + 1);
                 StringRequest request = new StringRequest(Request.Method.POST, url + "add_ticket.php",
                         new Response.Listener<String>() {
                             @Override
@@ -150,6 +158,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                                     JSONObject jsonObject = jsonArray.getJSONObject(0);
                                     int num = jsonObject.getInt("message");
                                     Toast.makeText(getApplicationContext(), "Le numéro de votre ticket : " + num, Toast.LENGTH_LONG).show();
+                                    Toast.makeText(getApplicationContext(), "Le meilleur bureau : " + bestOf.getLabel()
+                                            + " " + bestOf.getAdress(), Toast.LENGTH_LONG).show();
+                                    Toast.makeText(getApplicationContext(), "Vous pouvez etre servi aprés : " + bestOf.getWait() / 60
+                                            + " minutes", Toast.LENGTH_LONG).show();
                                 } catch (JSONException e) {
                                     e.printStackTrace();
                                     Toast.makeText(getApplicationContext(), "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -168,12 +180,51 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                     protected Map<String, String> getParams() {
                         Map<String, String> params = new HashMap<String, String>();
                         params.put("service", String.valueOf(spinner.getSelectedItemPosition() + 1));
+                        params.put("poste", String.valueOf(bestOf.getId()));
                         return params;
                     }
                 };
                 Volley.newRequestQueue(MainActivity.this).add(request);  // adding the request to the Volley request queue
             }
         });
+    }
+
+    private Post getNearestBestPost(int i) {
+        //Post[] posts2 = (Post[]) posts.toArray();
+        List<Post> best = new ArrayList<>();
+        for (Post post : posts) {
+            if ((post.getService() == i) && (post.getCluster() == 0)) {
+                float dist = distFrom((float) latitude, (float) longitude, (float) post.getLat(), (float) post.getLon());
+                post.setDistance(dist);
+                best.add(post);
+            }
+        }
+
+        Collections.sort(best, new Comparator<Post>() {
+            @Override
+            public int compare(Post z1, Post z2) {
+                if (z1.getDistance() > z2.getDistance())
+                    return 1;
+                if (z1.getDistance() < z2.getDistance())
+                    return -1;
+                return 0;
+            }
+        });
+
+        return best.get(0);
+    }
+
+    public static float distFrom(float lat1, float lng1, float lat2, float lng2) {
+        double earthRadius = 6371000; //meters
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        float dist = (float) (earthRadius * c);
+
+        return dist;
     }
 
     private void getPostes() {
@@ -209,27 +260,45 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     private void writePostsFile() {
         BufferedWriter bw = null;
         FileWriter fw = null;
+        FileOutputStream fOut;
+        String separator = System.getProperty("line.separator");
+        file = getFilesDir() + "/" + file;
+
         try {
-            fw = new FileWriter(file);
-            bw = new BufferedWriter(fw);
+            fOut = openFileOutput(file, Context.MODE_PRIVATE);
 
             for (Post post1 : posts) {
                 String content = posts.indexOf(post1) + " " + post1.getWait() + "\n";
-                bw.write(content);
+                fOut.write(content.getBytes());
+                fOut.write(separator.getBytes());
             }
 
-        } catch (IOException e) {
+            fOut.close();
+        } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (bw != null)
-                    bw.close();
-                if (fw != null)
-                    fw.close();
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
         }
+
+//        try {
+//            fw = new FileWriter(file);
+//            bw = new BufferedWriter(fw);
+//
+//            for (Post post1 : posts) {
+//                String content = posts.indexOf(post1) + " " + post1.getWait() + "\n";
+//                bw.write(content);
+//            }
+//
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        } finally {
+//            try {
+//                if (bw != null)
+//                    bw.close();
+//                if (fw != null)
+//                    fw.close();
+//            } catch (IOException ex) {
+//                ex.printStackTrace();
+//            }
+//        }
     }
 
     private void classPosts() {
@@ -296,18 +365,20 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             } else {
                 post.setCluster(1);
             }
-            posts.set(i,post);
+            posts.set(i, post);
             i++;
         }
     }
 
-    public static BufferedReader readDataFile(String filename) {
+    public BufferedReader readDataFile(String filename) {
         BufferedReader inputReader = null;
 
         try {
-            inputReader = new BufferedReader(new FileReader(filename));
+            FileInputStream fis = getApplicationContext().openFileInput(filename);
+            InputStreamReader isr = new InputStreamReader(fis);
+            inputReader = new BufferedReader(isr);
         } catch (FileNotFoundException ex) {
-            System.err.println("File not found: " + filename);
+            Log.d("File not found: ", filename);
         }
 
         return inputReader;
@@ -331,8 +402,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             startLocationUpdates();
         }
         if (mLocation != null) {
-            double latitude = mLocation.getLatitude();
-            double longitude = mLocation.getLongitude();
+            latitude = mLocation.getLatitude();
+            longitude = mLocation.getLongitude();
             Toast.makeText(this, "Location Detected lat: " + latitude + ", lon: " + longitude, Toast.LENGTH_LONG).show();
             Log.d("", "Location Detected lat: " + latitude + ", lon: " + longitude);
         } else {
