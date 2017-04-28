@@ -20,6 +20,9 @@ import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import weka.clusterers.SimpleKMeans;
+import weka.core.Instances;
+
 import com.android.volley.Request;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
@@ -38,7 +41,15 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,13 +65,17 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     private Location mLocation;
     private LocationManager locationManager;
     private LocationRequest mLocationRequest;
+    private List<Post> posts = new ArrayList<>();
     private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
     private long FASTEST_INTERVAL = 2000; /* 2 sec */
+    private String file = "D:\\hamza\\GL4\\Semestre2\\ApprentissageFouille\\posts.txt";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        getPostes();
 
         RequestFuture<JSONObject> future = RequestFuture.newFuture();
         JsonArrayRequest jsonRequest = new JsonArrayRequest
@@ -113,13 +128,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 
         LocationManager locationManager1 = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        if(locationManager1.isProviderEnabled(LocationManager.GPS_PROVIDER))
-            Log.d("GPS ","enabled");
+        if (locationManager1.isProviderEnabled(LocationManager.GPS_PROVIDER))
+            Log.d("GPS ", "enabled");
 
         if (mGoogleApiClient != null && locationManager != null)
             Log.d("", "google client initalized successfully ");
 
-            b = (Button) findViewById(R.id.tickbut);
+        b = (Button) findViewById(R.id.tickbut);
         b.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -159,6 +174,143 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                 Volley.newRequestQueue(MainActivity.this).add(request);  // adding the request to the Volley request queue
             }
         });
+    }
+
+    private void getPostes() {
+        JsonArrayRequest jsonRequest = new JsonArrayRequest
+                (url + "get_avg_time.php", new Response.Listener<JSONArray>() {
+                    @Override
+                    public void onResponse(JSONArray response) {
+                        // the response is already constructed as a JSONObject!
+                        try {
+                            for (int i = 0; i < response.length(); i++) {
+                                JSONObject jsonObject = response.getJSONObject(i);
+                                Post post = new Post(jsonObject.getDouble("wait"), jsonObject.getDouble("lon"),
+                                        jsonObject.getDouble("lat"), jsonObject.getInt("poste"), jsonObject.getInt("service"),
+                                        jsonObject.getInt("code"), jsonObject.getString("adresse"), jsonObject.getString("label"));
+                                posts.add(post);
+                            }
+                            classPosts();
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }, new Response.ErrorListener() {
+
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        error.printStackTrace();
+                    }
+                });
+
+        Volley.newRequestQueue(MainActivity.this).add(jsonRequest);  // adding the request to the Volley request queue
+    }
+
+    private void writePostsFile() {
+        BufferedWriter bw = null;
+        FileWriter fw = null;
+        try {
+            fw = new FileWriter(file);
+            bw = new BufferedWriter(fw);
+
+            for (Post post1 : posts) {
+                String content = posts.indexOf(post1) + " " + post1.getWait() + "\n";
+                bw.write(content);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (bw != null)
+                    bw.close();
+                if (fw != null)
+                    fw.close();
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private void classPosts() {
+        SimpleKMeans kmeans = new SimpleKMeans();
+        kmeans.setSeed(10);
+
+        //important parameter to set: preserver order, number of cluster.
+        kmeans.setPreserveInstancesOrder(true);
+        try {
+            kmeans.setNumClusters(3);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        writePostsFile();
+        BufferedReader datafile = readDataFile(file);
+        Instances data = null;
+        try {
+            data = new Instances(datafile);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+        try {
+            kmeans.buildClusterer(data);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // This array returns the cluster number (starting with 0) for each instance
+        // The array has as many elements as the number of instances
+        int[] assignments = new int[0];
+        try {
+            assignments = kmeans.getAssignments();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        List<Post> psts = new ArrayList<>();
+        psts.addAll(posts);
+        Collections.sort(psts, new Comparator<Post>() {
+            @Override
+            public int compare(Post z1, Post z2) {
+                if (z1.getWait() > z2.getWait())
+                    return 1;
+                if (z1.getWait() < z2.getWait())
+                    return -1;
+                return 0;
+            }
+        });
+        int last = posts.indexOf(psts.get(psts.size() - 1));
+        int first = posts.indexOf(psts.get(0));
+        int lastcls = assignments[last];
+        int firstcls = assignments[first];
+
+        int i = 0;
+        for (int clusterNum : assignments) {
+            Post post = posts.get(i);
+            if (clusterNum == lastcls) {
+                post.setCluster(2);
+            } else if (clusterNum == firstcls) {
+                post.setCluster(0);
+            } else {
+                post.setCluster(1);
+            }
+            posts.set(i,post);
+            i++;
+        }
+    }
+
+    public static BufferedReader readDataFile(String filename) {
+        BufferedReader inputReader = null;
+
+        try {
+            inputReader = new BufferedReader(new FileReader(filename));
+        } catch (FileNotFoundException ex) {
+            System.err.println("File not found: " + filename);
+        }
+
+        return inputReader;
     }
 
     @Override
