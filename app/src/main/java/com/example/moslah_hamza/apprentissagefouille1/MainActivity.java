@@ -43,6 +43,7 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -64,7 +65,7 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener, com.google.android.gms.location.LocationListener {
     private Button b;
-    private String url = "http://192.168.43.173/";
+    private String url = "http://192.168.1.4/";
     private Spinner spinner;
     private Map<Integer, String> services = new HashMap<Integer, String>();
     private GoogleApiClient mGoogleApiClient;
@@ -75,7 +76,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
     private long FASTEST_INTERVAL = 2000; /* 2 sec */
     private double longitude, latitude;
-    private String file = "posts.txt";
+    private String file = "posts.arff";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,45 +147,47 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             @Override
             public void onClick(View v) {
                 final Post bestOf = getNearestBestPost(spinner.getSelectedItemPosition() + 1);
-                StringRequest request = new StringRequest(Request.Method.POST, url + "add_ticket.php",
-                        new Response.Listener<String>() {
-                            @Override
-                            public void onResponse(String response) {
-                                // response
-                                Log.d("Response", response);
-                                try {
-                                    //Do it with this it will work
-                                    JSONArray jsonArray = new JSONArray(response);
-                                    JSONObject jsonObject = jsonArray.getJSONObject(0);
-                                    int num = jsonObject.getInt("message");
-                                    Toast.makeText(getApplicationContext(), "Le numéro de votre ticket : " + num, Toast.LENGTH_LONG).show();
-                                    Toast.makeText(getApplicationContext(), "Le meilleur bureau : " + bestOf.getLabel()
-                                            + " " + bestOf.getAdress(), Toast.LENGTH_LONG).show();
-                                    Toast.makeText(getApplicationContext(), "Vous pouvez etre servi aprés : " + bestOf.getWait() / 60
-                                            + " minutes", Toast.LENGTH_LONG).show();
-                                } catch (JSONException e) {
-                                    e.printStackTrace();
-                                    Toast.makeText(getApplicationContext(), "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                if (bestOf != null) {
+                    StringRequest request = new StringRequest(Request.Method.POST, url + "add_ticket.php",
+                            new Response.Listener<String>() {
+                                @Override
+                                public void onResponse(String response) {
+                                    // response
+                                    Log.d("Response", response);
+                                    try {
+                                        //Do it with this it will work
+                                        JSONArray jsonArray = new JSONArray(response);
+                                        JSONObject jsonObject = jsonArray.getJSONObject(0);
+                                        int num = jsonObject.getInt("message");
+                                        Toast.makeText(getApplicationContext(), "Le numéro de votre ticket : " + num, Toast.LENGTH_LONG).show();
+                                        Toast.makeText(getApplicationContext(), "Le meilleur bureau : " + bestOf.getLabel()
+                                                + " " + bestOf.getAdress(), Toast.LENGTH_LONG).show();
+                                        Toast.makeText(getApplicationContext(), "Vous pouvez etre servi aprés : " + bestOf.getWait() / 60
+                                                + " minutes", Toast.LENGTH_LONG).show();
+                                    } catch (JSONException e) {
+                                        e.printStackTrace();
+                                        Toast.makeText(getApplicationContext(), "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                                    }
+                                }
+                            },
+                            new Response.ErrorListener() {
+                                @Override
+                                public void onErrorResponse(VolleyError error) {
+                                    // error
+                                    Log.d("Error.Response", error.toString());
                                 }
                             }
-                        },
-                        new Response.ErrorListener() {
-                            @Override
-                            public void onErrorResponse(VolleyError error) {
-                                // error
-                                Log.d("Error.Response", error.toString());
-                            }
+                    ) {
+                        @Override
+                        protected Map<String, String> getParams() {
+                            Map<String, String> params = new HashMap<String, String>();
+                            params.put("service", String.valueOf(spinner.getSelectedItemPosition() + 1));
+                            params.put("poste", String.valueOf(bestOf.getId()));
+                            return params;
                         }
-                ) {
-                    @Override
-                    protected Map<String, String> getParams() {
-                        Map<String, String> params = new HashMap<String, String>();
-                        params.put("service", String.valueOf(spinner.getSelectedItemPosition() + 1));
-                        params.put("poste", String.valueOf(bestOf.getId()));
-                        return params;
-                    }
-                };
-                Volley.newRequestQueue(MainActivity.this).add(request);  // adding the request to the Volley request queue
+                    };
+                    Volley.newRequestQueue(MainActivity.this).add(request);  // adding the request to the Volley request queue
+                }
             }
         });
     }
@@ -193,6 +196,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         //Post[] posts2 = (Post[]) posts.toArray();
         List<Post> best = new ArrayList<>();
         for (Post post : posts) {
+            Log.d("best services: ", "" + post.getId() + " " + post.getWait() + " " + post.getCluster() + " " + post.getService());
             if ((post.getService() == i) && (post.getCluster() == 0)) {
                 float dist = distFrom((float) latitude, (float) longitude, (float) post.getLat(), (float) post.getLon());
                 post.setDistance(dist);
@@ -211,6 +215,9 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             }
         });
 
+        if (best.size() == 0) {
+            return null;
+        }
         return best.get(0);
     }
 
@@ -234,6 +241,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                     public void onResponse(JSONArray response) {
                         // the response is already constructed as a JSONObject!
                         try {
+                            Log.d("get avg time length ", "" + response.length());
                             for (int i = 0; i < response.length(); i++) {
                                 JSONObject jsonObject = response.getJSONObject(i);
                                 Post post = new Post(jsonObject.getDouble("wait"), jsonObject.getDouble("lon"),
@@ -265,14 +273,22 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         file = getFilesDir() + "/" + file;
 
         try {
-            fOut = openFileOutput(file, Context.MODE_PRIVATE);
+            fOut = new FileOutputStream(file);
+            fOut.write("@relation poste".getBytes());
+            fOut.write(separator.getBytes());
+            fOut.write(separator.getBytes());
+            fOut.write("@attribute wait real".getBytes());
+            fOut.write(separator.getBytes());
+            fOut.write(separator.getBytes());
+            fOut.write("@data".getBytes());
+            fOut.write(separator.getBytes());
+            //fOut = openFileOutput(file, Context.MODE_PRIVATE);
 
             for (Post post1 : posts) {
-                String content = posts.indexOf(post1) + " " + post1.getWait() + "\n";
+                String content = post1.getWait() + "\n";
                 fOut.write(content.getBytes());
-                fOut.write(separator.getBytes());
             }
-
+            Log.d("writes ", "file");
             fOut.close();
         } catch (Exception e) {
             e.printStackTrace();
@@ -308,9 +324,9 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         //important parameter to set: preserver order, number of cluster.
         kmeans.setPreserveInstancesOrder(true);
         try {
-            kmeans.setNumClusters(3);
+            kmeans.setNumClusters(2);
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("kmeans num cluster : ", e.toString());
         }
 
         writePostsFile();
@@ -322,11 +338,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             e.printStackTrace();
         }
 
-
         try {
             kmeans.buildClusterer(data);
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("kmeans build : ", e.toString());
         }
 
         // This array returns the cluster number (starting with 0) for each instance
@@ -357,14 +372,15 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
         int i = 0;
         for (int clusterNum : assignments) {
-            Post post = posts.get(i);
+            //Post post = posts.get(i);
+            Post post = psts.get(i);
             if (clusterNum == lastcls) {
-                post.setCluster(2);
+                post.setCluster(1);
             } else if (clusterNum == firstcls) {
                 post.setCluster(0);
-            } else {
-                post.setCluster(1);
             }
+            //System.out.println(""+post.getCluster());
+            Log.d("cluster : ", "" + post.getCluster());
             posts.set(i, post);
             i++;
         }
@@ -372,14 +388,34 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
     public BufferedReader readDataFile(String filename) {
         BufferedReader inputReader = null;
+        StringBuilder sb = new StringBuilder();
 
         try {
-            FileInputStream fis = getApplicationContext().openFileInput(filename);
-            InputStreamReader isr = new InputStreamReader(fis);
-            inputReader = new BufferedReader(isr);
+            inputReader = new BufferedReader(new FileReader(filename));
         } catch (FileNotFoundException ex) {
-            Log.d("File not found: ", filename);
+            Log.e("File not found: ", filename);
         }
+
+
+//        try {
+//            File file = new File(filename);
+//            FileInputStream fis = new FileInputStream(file);
+//                    //getApplicationContext().openFileInput(filename);
+//            InputStreamReader isr = new InputStreamReader(fis);
+//            inputReader = new BufferedReader(isr);
+//            String line;
+//            int l=0;
+//            while ((line = inputReader.readLine()) != null) {
+//                sb.append(line);
+//                l++;
+//            }
+//            Log.d("lines: ", l+"");
+//            Log.d("lines: ", inputReader.toString());
+//        } catch (FileNotFoundException ex) {
+//            Log.d("File not found: ", filename);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
 
         return inputReader;
     }
